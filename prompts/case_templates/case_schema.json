@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "审讯室风云 — 案件剧本 JSON Schema",
+  "description": "成员 B 制定的数据契约书二：LLM 生成的案件剧本必须遵循此 JSON 格式。成员 D 基于此格式进行前端静态 UI 摆放。",
+  "type": "object",
+  "required": ["case_name", "background", "suspects", "evidences"],
+  "properties": {
+    "case_name": {
+      "type": "string",
+      "description": "案件名称，带风格色彩的名称，如'月光下的巫师塔：双月之夜的诅咒'",
+      "examples": ["庄园谋杀案", "齿轮城的血色黄昏"]
+    },
+    "background": {
+      "type": "string",
+      "description": "案件背景描述，包含时间、地点、死者信息、现场状况",
+      "minLength": 50
+    },
+    "suspects": {
+      "type": "array",
+      "description": "嫌疑人列表（2-3 人）",
+      "minItems": 2,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["suspect_id", "name", "role", "alibi", "hidden_truth", "weakness_item", "weakness_description"],
+        "properties": {
+          "suspect_id": {
+            "type": "string",
+            "description": "嫌疑人唯一标识符，格式 suspect_a, suspect_b, suspect_c",
+            "pattern": "^suspect_[a-c]$"
+          },
+          "name": {
+            "type": "string",
+            "description": "嫌疑人姓名（全名）"
+          },
+          "role": {
+            "type": "string",
+            "description": "身份角色，如：庄园的炼金术师、护卫队长、管家"
+          },
+          "alibi": {
+            "type": "string",
+            "description": "嫌疑人公开口述的不在场证明/辩解"
+          },
+          "hidden_truth": {
+            "type": "string",
+            "description": "嫌疑人隐藏的真实秘密（玩家需要通过审讯揭穿的真相）"
+          },
+          "weakness_item": {
+            "type": "string",
+            "description": "指向该嫌疑人的关键证物 ID，出示后防线大幅下降"
+          },
+          "weakness_description": {
+            "type": "string",
+            "description": "该弱点证物为何能击破嫌疑人的逻辑说明"
+          }
+        }
+      }
+    },
+    "evidences": {
+      "type": "array",
+      "description": "证物列表（3-5 件）",
+      "minItems": 3,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["evidence_id", "name", "description", "location_found", "category", "related_suspect_id"],
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "description": "证物唯一标识符，格式 evidence_1, evidence_2, ...",
+            "pattern": "^evidence_[1-5]$"
+          },
+          "name": {
+            "type": "string",
+            "description": "证物名称，带风格描述，如'沾有霜冻魔力的银白短箭'"
+          },
+          "description": {
+            "type": "string",
+            "description": "证物详细描述（化验前可见的表层信息）"
+          },
+          "location_found": {
+            "type": "string",
+            "description": "发现地点"
+          },
+          "category": {
+            "type": "string",
+            "description": "证物类别: weapon / document / forensic / testimony / chemical",
+            "enum": ["weapon", "document", "forensic", "testimony", "chemical"]
+          },
+          "related_suspect_id": {
+            "type": "string",
+            "description": "关联的嫌疑人 ID（该证物指向谁）"
+          }
+        }
+      }
+    }
+  }
+}

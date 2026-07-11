@@ -1,0 +1,172 @@
+{
+  "case": {
+    "case_name": "月光下的巫师塔：双月之夜的诅咒",
+    "case_style": "manor",
+    "session_id": "demo_session_001",
+    "background": "在艾尔登王国边境的银月庄园，庄园主奥德里克·月影伯爵于双月之夜被杀。死亡时间大约在凌晨1点至2点之间。尸体倒在庄园东塔顶层的圆形法阵中央，胸口被一支银白魔法短箭贯穿。现场留下了一片干枯的黑色玫瑰花瓣和半截蜡烛。",
+    "current_action_points": 10,
+    "phase": "investigation"
+  },
+  "suspects": [
+    {
+      "suspect_id": "suspect_a",
+      "name": "伊索尔德·影焰",
+      "role": "庄园的炼金术师",
+      "avatar_calm": "assets/images/suspect_a_calm.png",
+      "avatar_nervous": "assets/images/suspect_a_sweat.png",
+      "avatar_broken": "assets/images/suspect_a_broken.png",
+      "defense_score": 100,
+      "expression_state": "calm",
+      "alibi": "午夜时我一直在东翼的炼金实验室里调配药剂。我的学徒莉莉可以作证，她整晚都在帮我收集药草。",
+      "hidden_truth": "我确实在实验室待到很晚，但中途偷偷去西侧花园采摘了禁药月影草——那是伯爵严令禁止的植物。莉莉当时在打瞌睡，没有发现我离开了大约二十分钟。我回来时碰巧看到一个人影匆忙从塔楼方向跑开。",
+      "weakness_item": "evidence_1",
+      "weakness_description": "银白短箭上沾有月影草汁液，说明凶器与伊索尔德有关",
+      "lies": [
+        {
+          "statement": "我整晚没有离开过实验室。",
+          "contradiction": "月影草圃有她的脚印，塔楼方向也有她的足迹。",
+          "is_exposed": false
+        },
+        {
+          "statement": "我没见过那支银白短箭。",
+          "contradiction": "短箭上的月影草汁液只有她的实验室才有。",
+          "is_exposed": false
+        }
+      ]
+    },
+    {
+      "suspect_id": "suspect_b",
+      "name": "塞德里克·铁卫",
+      "role": "庄园的护卫队长",
+      "avatar_calm": "assets/images/suspect_b_calm.png",
+      "avatar_nervous": "assets/images/suspect_b_sweat.png",
+      "avatar_broken": "assets/images/suspect_b_broken.png",
+      "defense_score": 100,
+      "expression_state": "calm",
+      "alibi": "我整晚都在正门值班室值守，从未离开。守卫马库斯可以证明，他还给我送过夜宵。十二点半的时候我去了一趟后院巡逻，大约一刻钟后返回。",
+      "hidden_truth": "我其实偷偷去了高塔——不是为了杀人，而是怀疑伯爵夫人与外人私通，想用望远镜窥探高塔窗户。我在窗框上留下了指纹，但我什么也没看到就离开了。",
+      "weakness_item": "evidence_2",
+      "weakness_description": "高塔窗户内侧的指纹与塞德里克完全吻合，证明他案发时段到过现场",
+      "lies": [
+        {
+          "statement": "我从未离开过正门值班室，马库斯可以作证。",
+          "contradiction": "高塔窗框上有他的指纹，他至少去过犯罪现场。",
+          "is_exposed": false
+        }
+      ]
+    },
+    {
+      "suspect_id": "suspect_c",
+      "name": "莫里斯·暗藤",
+      "role": "庄园的管家",
+      "avatar_calm": "assets/images/suspect_c_calm.png",
+      "avatar_nervous": "assets/images/suspect_c_sweat.png",
+      "avatar_broken": "assets/images/suspect_c_broken.png",
+      "defense_score": 100,
+      "expression_state": "calm",
+      "alibi": "案发时我正在地窖整理酒桶，这是每周二的例行工作。地窖的钥匙只有我和伯爵有，我可以确定没有人进来过。大约凌晨一点一刻我听到一声沉闷的响动，但以为是风。",
+      "hidden_truth": "我欠了黑市商人一大笔赌债。伯爵发现了我的账目亏空，威胁要报警。我确实去过塔楼找他求情，但我们只是争吵了，我没有杀他。",
+      "weakness_item": "evidence_3",
+      "weakness_description": "管家袖口的血迹经化验与死者血型吻合，但他声称只是争吵时沾染",
+      "lies": [
+        {
+          "statement": "我整晚都在地窖，从没去过塔楼。",
+          "contradiction": "他袖口有死者血迹，现场还有他落下的火柴盒。",
+          "is_exposed": false
+        },
+        {
+          "statement": "我和伯爵关系很好，没有矛盾。",
+          "contradiction": "伯爵发现了他挪用公款，曾威胁要报警。",
+          "is_exposed": false
+        }
+      ]
+    }
+  ],
+  "evidences": [
+    {
+      "evidence_id": "evidence_1",
+      "name": "沾有霜冻魔力的银白短箭",
+      "description": "贯穿死者胸口的凶器。长约25厘米，箭身刻有银月纹章，箭尖上除了死者的血迹，还沾有微量的白色汁液。",
+      "location_found": "从死者胸口拔出，案发现场地面",
+      "category": "weapon",
+      "related_suspect_id": "suspect_a",
+      "is_discovered": false,
+      "is_analyzed": false,
+      "analysis_result": "",
+      "analysis_pending": false
+    },
+    {
+      "evidence_id": "evidence_2",
+      "name": "高塔彩色玻璃窗上的指纹",
+      "description": "东塔顶层窗户的内侧金属窗框上提取到一枚清晰的指纹。指纹纹理完整，经初步比对与护卫档案记录吻合。",
+      "location_found": "东塔顶层密室窗户内侧窗框",
+      "category": "forensic",
+      "related_suspect_id": "suspect_b",
+      "is_discovered": false,
+      "is_analyzed": false,
+      "analysis_result": "",
+      "analysis_pending": false
+    },
+    {
+      "evidence_id": "evidence_3",
+      "name": "管家衣袖上的暗色血迹",
+      "description": "管家莫里斯左袖口内侧发现几处暗色斑点。他声称是红酒渍，但颜色偏暗且无酒味，需送法医化验。",
+      "location_found": "管家莫里斯的制服左袖口",
+      "category": "forensic",
+      "related_suspect_id": "suspect_c",
+      "is_discovered": false,
+      "is_analyzed": false,
+      "analysis_result": "",
+      "analysis_pending": false
+    },
+    {
+      "evidence_id": "evidence_4",
+      "name": "半截黑色蜡烛与火柴盒",
+      "description": "法阵边缘发现半截烧过的黑色蜡烛和一个银质火柴盒。火柴盒上刻有字母'M'，盒内少了两根火柴。",
+      "location_found": "案发法阵边缘地面",
+      "category": "physical",
+      "related_suspect_id": "suspect_c",
+      "is_discovered": false,
+      "is_analyzed": false,
+      "analysis_result": "",
+      "analysis_pending": false
+    },
+    {
+      "evidence_id": "evidence_5",
+      "name": "月影草残叶与花园脚印",
+      "description": "西侧花园禁药圃边缘发现新鲜的月影草被采摘痕迹，泥土中有两串脚印——一串通向塔楼方向，一串返回东翼。",
+      "location_found": "西侧花园月影草圃",
+      "category": "forensic",
+      "related_suspect_id": "suspect_a",
+      "is_discovered": false,
+      "is_analyzed": false,
+      "analysis_result": "",
+      "analysis_pending": false
+    }
+  ],
+  "ui_meta": {
+    "style": "manor",
+    "color_scheme": {
+      "primary": "#2d4a3e",
+      "secondary": "#8b7355",
+      "background": "#1a1a0e",
+      "paper": "#d4c5a9",
+      "text": "#2c1810",
+      "stamp_arrest": "#8b0000",
+      "stamp_release": "#2e7d32",
+      "desk_wood": "#5c4033",
+      "screen_green": "#00ff41"
+    },
+    "suspect_display_order": ["suspect_a", "suspect_b", "suspect_c"],
+    "defense_bar_chars": {
+      "full": "█",
+      "half": "▓",
+      "empty": "░"
+    },
+    "evidence_card_size": {
+      "width": 180,
+      "height": 240
+    },
+    "frontend_polling_interval_seconds": 5
+  }
+}
