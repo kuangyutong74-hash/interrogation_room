@@ -164,6 +164,84 @@ def test_05_mock_respond_flow():
         print(f"⚠️ [test_05] 测试跳过: {e}")
 
 
+def test_07_script_generator_import():
+    """测试 ScriptGenerator 导入和 Schema 完整性"""
+    from agents.script_generator import ScriptGenerator, CaseSchema, SuspectSchema, EvidenceSchema
+    # 验证 Schema 字段完整性
+    case_fields = list(CaseSchema.model_fields.keys())
+    assert "case_name" in case_fields
+    assert "background" in case_fields
+    assert "suspects" in case_fields
+    assert "evidences" in case_fields
+    suspect_fields = list(SuspectSchema.model_fields.keys())
+    assert "suspect_id" in suspect_fields
+    assert "weakness_item" in suspect_fields
+    print("✅ [test_07] ScriptGenerator 导入 + Schema 完整性验证通过")
+
+
+def test_08_save_to_db_with_mock():
+    """测试 save_to_db 数据库写入逻辑（使用 Mock 数据，不调用 LLM）"""
+    import json
+    from agents.script_generator import ScriptGenerator
+    from database.db_helper import DBHelper, initialize_database
+
+    initialize_database()
+    try:
+        # 读取 template_manor.json 作为 Mock 数据
+        mock_path = os.path.join(
+            os.path.dirname(__file__), "..",
+            "prompts", "case_templates", "template_manor.json"
+        )
+        with open(mock_path, "r", encoding="utf-8") as f:
+            mock_case = json.load(f)
+
+        # 跳过 LLM 初始化，直接测试 save_to_db
+        generator = ScriptGenerator.__new__(ScriptGenerator)
+        generator.save_to_db(mock_case, session_id="test_script_gen")
+
+        # 验证数据库写入
+        session = DBHelper.get_session("test_script_gen")
+        assert session is not None
+        assert session["case_name"] == mock_case["case_name"]
+
+        suspects = DBHelper.get_all_suspects("test_script_gen")
+        assert len(suspects) == len(mock_case["suspects"])
+
+        evidences = DBHelper.get_all_evidences("test_script_gen")
+        assert len(evidences) == len(mock_case["evidences"])
+
+        # 验证 profile_json 内容
+        for s in suspects:
+            profile = json.loads(s["profile_json"])
+            assert "alibi" in profile
+            assert "hidden_truth" in profile
+
+        DBHelper.reset_db()
+        print("✅ [test_08] save_to_db Mock 数据写入 + 验证通过")
+    except Exception as e:
+        DBHelper.reset_db()
+        raise e
+
+
+def test_09_style_prompts_integrity():
+    """测试风格提示词模板完整性"""
+    from agents.script_generator import STYLE_PROMPTS, GENERATION_SYSTEM_PROMPT
+
+    assert "manor" in STYLE_PROMPTS
+    assert "steampunk" in STYLE_PROMPTS
+    assert "sci_fi" in STYLE_PROMPTS
+    assert len(STYLE_PROMPTS) == 3
+
+    for style_name, prompt in STYLE_PROMPTS.items():
+        assert len(prompt) > 100, f"风格 '{style_name}' 提示词太短"
+        assert "suspect_id" in prompt
+        assert "evidence_id" in prompt
+
+    assert "style_prompt" in GENERATION_SYSTEM_PROMPT
+    assert "hidden_truth" in GENERATION_SYSTEM_PROMPT
+    print("✅ [test_09] 风格提示词模板完整性验证通过")
+
+
 def test_06_contradiction_prompt_format():
     """测试矛盾检测 Prompt 格式化"""
     from prompts.system_prompts import CONTRADICTION_DETECTION_PROMPT
@@ -191,6 +269,9 @@ if __name__ == "__main__":
         ("SuspectAgent 初始化", test_04_suspect_agent_init),
         ("数据库读写流程", test_05_mock_respond_flow),
         ("矛盾检测 Prompt", test_06_contradiction_prompt_format),
+        ("ScriptGenerator 导入", test_07_script_generator_import),
+        ("save_to_db 写入", test_08_save_to_db_with_mock),
+        ("风格提示词模板", test_09_style_prompts_integrity),
     ]
 
     passed = 0
