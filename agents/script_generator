@@ -17,7 +17,7 @@
     generator = ScriptGenerator()
     case_data = generator.generate_case("manor")
     generator.save_to_db(case_data, session_id="sess_001")
-
+    
     一步到位：
     sid, case_dict = generator.generate_and_save("steampunk")
 """
@@ -43,7 +43,7 @@ class SuspectSchema(BaseModel):
     """嫌疑人数据模型"""
     suspect_id: str = Field(description="嫌疑人 ID: suspect_a / suspect_b / suspect_c")
     name: str = Field(description="嫌疑人全名")
-    role: str = Field(description="身份角色，如庄园的炼金术师")
+    role: str = Field(description="身份角色，如'庄园的炼金术师'")
     alibi: str = Field(description="不在场证明/公开辩解")
     hidden_truth: str = Field(description="隐藏的真实秘密")
     weakness_item: str = Field(description="弱点证物 ID，如 evidence_1")
@@ -121,7 +121,7 @@ GENERATION_SYSTEM_PROMPT = """你是"审讯室风云"游戏的谋杀案剧本生
 1. 生成 3 名嫌疑人（suspect_a ~ suspect_c），每人有独特的 secret/hidden_truth
 2. 每个嫌疑人的 weakness_item 必须指向一件真实的证物 ID
 3. 生成 4-5 件证物（evidence_1 ~ evidence_5）
-4. hidden_truth 要设计得合理——让嫌疑人可疑但不一定是真凶
+4. hidden_truth 要设计得合理——让嫌疑人"可疑但不一定是真凶"
 5. 使用虚构的奇幻/科幻名字，不要真实人名地名
 6. JSON 必须合法，不要遗漏逗号或括号
 """
@@ -135,7 +135,9 @@ def _extract_json(text: str) -> str:
     text = text.strip()
     # 移除 ```json ... ``` / ``` ... ``` 包裹
     if text.startswith("```"):
+        # 移除开头的 ```
         text = re.sub(r"^```(?:json)?\s*\n?", "", text)
+        # 移除结尾的 ```
         text = re.sub(r"\n?```\s*$", "", text)
         text = text.strip()
 
@@ -187,7 +189,7 @@ class ScriptGenerator:
         根据风格生成完整案件剧本。
 
         参数:
-          style: 风格名称 — manor(庄园) / steampunk(蒸汽朋克) / sci_fi(废土科幻)
+          style: 风格名称 — "manor"(庄园) / "steampunk"(蒸汽朋克) / "sci_fi"(废土科幻)
 
         返回:
           CaseSchema 对象
@@ -235,7 +237,7 @@ class ScriptGenerator:
 
     def save_to_db(
         self,
-        case_data,
+        case_data: CaseSchema,
         session_id: Optional[str] = None,
         action_points: int = 10,
     ) -> str:
@@ -248,18 +250,14 @@ class ScriptGenerator:
           3. evidence_inventory — 每件证物记录
 
         参数:
-          case_data: 案件数据（CaseSchema 对象或 dict）
+          case_data: 案件数据（CaseSchema 对象）
           session_id: 会话 ID（不传则自动生成 UUID）
           action_points: 初始行动点数
 
         返回:
           session_id: 写入后的会话 ID
         """
-        # 兼容 CaseSchema 对象和 dict 输入
-        if isinstance(case_data, CaseSchema):
-            case_dict = case_data.model_dump()
-        else:
-            case_dict = case_data
+        case_dict = case_data.model_dump()
 
         if session_id is None:
             session_id = f"session_{uuid.uuid4().hex[:12]}"
@@ -338,20 +336,20 @@ def demo_generate(style: str = "manor") -> None:
     case_dict = case_data.model_dump()
 
     print("=" * 60)
-    print(f"案件: {case_dict['case_name']}")
-    print(f"背景: {case_dict['background'][:120]}...")
+    print(f"📜 生成案件: {case_dict['case_name']}")
+    print(f"📖 背景: {case_dict['background'][:120]}...")
     print("-" * 60)
 
     for s in case_dict["suspects"]:
-        print(f"嫌疑人 {s['suspect_id']}: {s['name']}（{s['role']}）")
-        print(f"  口供: {s['alibi'][:60]}...")
-        print(f"  秘密: {s['hidden_truth'][:60]}...")
+        print(f"🔍 嫌疑人 {s['suspect_id']}: {s['name']}（{s['role']}）")
+        print(f"   口供: {s['alibi'][:60]}...")
+        print(f"   秘密: {s['hidden_truth'][:60]}...")
 
     print("-" * 60)
     for e in case_dict["evidences"]:
-        print(f"证物 {e['evidence_id']}: {e['name']}")
-        print(f"  描述: {e['description'][:80]}...")
-        print(f"  关联: {e['related_suspect_id']}")
+        print(f"📦 证物 {e['evidence_id']}: {e['name']}")
+        print(f"   描述: {e['description'][:80]}...")
+        print(f"   关联: {e['related_suspect_id']}")
 
     print("=" * 60)
 

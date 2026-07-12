@@ -1,0 +1,8 @@
+[DBHelper] Database initialized at: D:\Desktop\企业实训\interrogation_room\database\case.db
+[DBHelper] All tables cleared.
+=== 测试1: 纯文本策略 JSON 生成 ===
+原始回复: {"name":"测试","age":25}
+Traceback (most recent call last):
+  File "d:\Desktop\企业实训\interrogation_room\test_day4_final.py", line 29, in <module>
+    print("\u2705 纯文本JSON生成正常")
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2705' in position 0: illegal multibyte sequence
