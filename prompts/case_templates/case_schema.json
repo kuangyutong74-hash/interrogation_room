@@ -22,7 +22,7 @@
       "maxItems": 3,
       "items": {
         "type": "object",
-        "required": ["suspect_id", "name", "role", "alibi", "hidden_truth", "weakness_item", "weakness_description"],
+        "required": ["suspect_id", "name", "gender", "age", "appearance", "role", "alibi", "hidden_truth", "weakness_item", "weakness_description"],
         "properties": {
           "suspect_id": {
             "type": "string",
@@ -32,6 +32,21 @@
           "name": {
             "type": "string",
             "description": "嫌疑人姓名（全名）"
+          },
+          "gender": {
+            "type": "string",
+            "description": "性别: male / female",
+            "enum": ["male", "female"]
+          },
+          "age": {
+            "type": "integer",
+            "description": "年龄（如 35）",
+            "minimum": 18,
+            "maximum": 99
+          },
+          "appearance": {
+            "type": "string",
+            "description": "外貌描述（发型、面部特征、衣着风格，约20-50字，前端用于配图参考）"
           },
           "role": {
             "type": "string",

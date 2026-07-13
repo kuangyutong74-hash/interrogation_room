@@ -43,6 +43,9 @@ class SuspectSchema(BaseModel):
     """嫌疑人数据模型"""
     suspect_id: str = Field(description="嫌疑人 ID: suspect_a / suspect_b / suspect_c")
     name: str = Field(description="嫌疑人全名")
+    gender: str = Field(description="性别: male / female")
+    age: int = Field(description="年龄（如 35）")
+    appearance: str = Field(description="外貌描述（发型、面部特征、衣着风格，约20-50字）")
     role: str = Field(description="身份角色，如庄园的炼金术师")
     alibi: str = Field(description="不在场证明/公开辩解")
     hidden_truth: str = Field(description="隐藏的真实秘密")
@@ -98,6 +101,9 @@ GENERATION_SYSTEM_PROMPT = """你是"审讯室风云"游戏的谋杀案剧本生
     {{
       "suspect_id": "suspect_a",
       "name": "嫌疑人全名",
+      "gender": "male 或 female",
+      "age": 年龄数字（如 35）,
+      "appearance": "外貌描述（发型、面部特征、衣着风格，约20-50字）",
       "role": "身份角色",
       "alibi": "不在场证明/公开辩解",
       "hidden_truth": "隐藏的真相（解释为何行为可疑但未必是真凶）",

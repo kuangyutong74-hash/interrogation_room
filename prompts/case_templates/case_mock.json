@@ -11,6 +11,9 @@
     {
       "suspect_id": "suspect_a",
       "name": "伊索尔德·影焰",
+      "gender": "female",
+      "age": 29,
+      "appearance": "银白色长发束成高马尾，眼神锐利，身穿墨绿色炼金术师长袍，佩戴月水晶吊坠",
       "role": "庄园的炼金术师",
       "avatar_calm": "assets/images/suspect_a_calm.png",
       "avatar_nervous": "assets/images/suspect_a_sweat.png",
@@ -37,6 +40,9 @@
     {
       "suspect_id": "suspect_b",
       "name": "塞德里克·铁卫",
+      "gender": "male",
+      "age": 42,
+      "appearance": "深棕色短发，方正脸型，左侧脸颊有一道旧伤疤，身穿银灰色锁子甲外套蓝色披风",
       "role": "庄园的护卫队长",
       "avatar_calm": "assets/images/suspect_b_calm.png",
       "avatar_nervous": "assets/images/suspect_b_sweat.png",
@@ -58,6 +64,9 @@
     {
       "suspect_id": "suspect_c",
       "name": "莫里斯·暗藤",
+      "gender": "male",
+      "age": 55,
+      "appearance": "花白短发梳得一丝不苟，深陷的眼窝带有黑眼圈，身穿暗红色管家制服配银纽扣",
       "role": "庄园的管家",
       "avatar_calm": "assets/images/suspect_c_calm.png",
       "avatar_nervous": "assets/images/suspect_c_sweat.png",
