@@ -5,9 +5,21 @@
   - 支持选中态（红框高亮）
   - 未分析证物：显示"送检"按钮（消耗行动点，调用 C 的异步队列）
   - 已分析证物：显示"对质"按钮（设置对质状态，供 dialogue_panel 消费）
+  - 按 category 动态映射图标与边框颜色（weapon/document/forensic/testimony/chemical）
 """
 import streamlit as st
 from database.db_helper import DBHelper
+
+# ── 证物类别 → 图标/颜色映射表 ──
+# 大模型生成的 category 字段直接决定卡片视觉风格
+CATEGORY_STYLE = {
+    "weapon":    {"icon": "🗡️", "color": "#8e0000"},
+    "document":  {"icon": "📜", "color": "#8b6914"},
+    "forensic":  {"icon": "🔬", "color": "#607d8b"},
+    "testimony": {"icon": "💬", "color": "#2e7d32"},
+    "chemical":  {"icon": "⚗️", "color": "#6a1b9a"},
+    "physical":  {"icon": "📦", "color": "#6b5b4f"},  # 默认兜底
+}
 
 
 def render():
@@ -27,15 +39,25 @@ def render():
     for idx, ev in enumerate(evidences):
         with ev_cols[idx % 2]:
             is_selected = st.session_state.get("selected_evidence_id") == ev["evidence_id"]
-            border_color = "#d32f2f" if is_selected else "#6b5b4f"
+
+            # ── 动态视觉：按 category 映射图标与颜色 ──
+            cat = ev.get("category", "physical")
+            style = CATEGORY_STYLE.get(cat, CATEGORY_STYLE["physical"])
+
+            # 已分析显示显微镜，未分析显示类别图标
+            icon = "🔬" if ev.get("is_analyzed") else style["icon"]
+
+            # 选中态用红色，未选中态用 category 主题色
+            border_color = "#d32f2f" if is_selected else style["color"]
             bg_color = "#fff3e0" if is_selected else "#f4f1e8"
 
             # 纸质卡片 HTML
             card_html = f"""
             <div style="background:{bg_color}; border:2px solid {border_color}; padding:8px; text-align:center; margin-bottom:8px; border-radius:2px; box-shadow:2px 2px 0 rgba(0,0,0,0.2);">
-                <div style="font-size:1.5rem;">{'🔬' if ev.get('is_analyzed') else '📄'}</div>
+                <div style="font-size:1.5rem;">{icon}</div>
                 <div style="font-weight:bold; font-size:1.05rem; color:#2b2b2b;">{ev['name']}</div>
-                <div style="font-size:0.8rem; color:#555;">{ev.get('description', '')[:40]}...</div>
+                <div style="font-size:0.75rem; color:#555; margin-top:2px;">[{cat.upper()}]</div>
+                <div style="font-size:0.8rem; color:#555;">{ev.get('description', '')[:35]}...</div>
                 {'<div style="color:#d32f2f; font-size:0.8rem; margin-top:4px;">⏳ 化验中...</div>' if ev.get('analysis_pending') else ''}
             </div>
             """
