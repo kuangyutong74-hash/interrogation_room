@@ -79,6 +79,17 @@ SKILL_DURATION_MAP = {
     "trace_analysis":    10,
 }
 
+# 行动点数（AP）消耗：越复杂的化验消耗越多
+SKILL_AP_COST = {
+    "fingerprint_match": 1,
+    "blood_analysis":    2,
+    "document_verify":   1,
+    "toxicology_report": 2,
+    "trace_analysis":    2,
+}
+
+DEFAULT_AP_COST = 1  # 自动选择技能时的默认消耗
+
 
 # ── 内部工具 ───────────────────────────────────────────────
 
@@ -321,11 +332,12 @@ def run_analysis(evidence: dict, skill: Optional[str] = None,
 
 
 def list_available_skills() -> dict:
-    """列出所有可用的分析技能及其适用类别和耗时"""
+    """列出所有可用的分析技能及其适用类别、耗时和AP消耗"""
     return {
         "skills": list(SKILL_FUNCTIONS.keys()),
         "category_mapping": SKILL_CATEGORY_MAP,
         "durations": SKILL_DURATION_MAP,
+        "ap_costs": SKILL_AP_COST,
     }
 
 
@@ -444,8 +456,8 @@ class ForensicAgent:
 
     # ── 提交化验任务 ─────────────────────────────────────
 
-    def submit_analysis(self, evidence_id: str) -> int:
-        """将证物送检，写入 forensic_queue。返回 task_id。"""
+    def submit_analysis(self, evidence_id: str, skill: Optional[str] = None) -> int:
+        """将证物送检，写入 forensic_queue，自动扣除行动点数。返回 task_id。"""
         evidence = DBHelper.get_evidence(self.session_id, evidence_id)
         if evidence is None:
             raise ValueError(
@@ -456,10 +468,21 @@ class ForensicAgent:
         if evidence.get("analysis_pending"):
             raise ValueError(f"证物 '{evidence_id}' 已送检，正在等待化验结果")
 
+        # ── AP 消耗 ──
+        actual_skill = skill or _pick_skill_for_evidence(evidence)
+        ap_cost = SKILL_AP_COST.get(actual_skill, DEFAULT_AP_COST)
+        remaining = DBHelper.update_action_points(self.session_id, -ap_cost)
+        if remaining <= 0:
+            DBHelper.update_action_points(self.session_id, ap_cost)  # 回退
+            raise ValueError(
+                f"行动点数不足！送检 {evidence['name']} 需要 {ap_cost} AP，"
+                f"当前剩余 {remaining + ap_cost} AP"
+            )
+
         task_id = DBHelper.enqueue_forensic(self.session_id, evidence_id)
         print(
             f"[ForensicAgent] 证物 '{evidence['name']}' 已送检，"
-            f"任务 ID: {task_id}"
+            f"任务 ID: {task_id}，消耗 {ap_cost} AP（剩余 {remaining} AP）"
         )
         return task_id
 
