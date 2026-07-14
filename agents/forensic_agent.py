@@ -22,13 +22,39 @@
 """
 
 import asyncio
+import os
 import random
 import sqlite3
 import threading
 from typing import Optional
 
+from dotenv import load_dotenv
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
+
 from config import DB_PATH
 from database.db_helper import DBHelper
+
+load_dotenv()
+
+# ── LLM 实例（懒加载）─────────────────────────────────────
+
+_llm: Optional[ChatOpenAI] = None
+
+
+def _get_llm() -> ChatOpenAI:
+    """获取共享的 LLM 实例，用于法医报告生成"""
+    global _llm
+    if _llm is None:
+        api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("OPENAI_API_KEY")
+        base_url = os.getenv("LLM_BASE_URL", "https://api.deepseek.com/v1")
+        _llm = ChatOpenAI(
+            model=os.getenv("LLM_MODEL", "deepseek-chat"),
+            temperature=0.7,
+            api_key=api_key,
+            base_url=base_url,
+        )
+    return _llm
 
 
 # ══════════════════════════════════════════════════════════════
@@ -79,202 +105,176 @@ def _suspect_name(session_id: str, suspect_id: str) -> str:
         return suspect_id
 
 
-# ── 五项技能函数 ──────────────────────────────────────────
+# ── LLM 报告生成辅助 ────────────────────────────────────
+
+def _llm_report(system_prompt: str, user_prompt: str,
+                fallback: str) -> str:
+    """调用 LLM 生成法医报告，失败时回退到兜底文本"""
+    try:
+        llm = _get_llm()
+        response = llm.invoke([
+            ("system", system_prompt),
+            ("human", user_prompt),
+        ])
+        return response.content.strip()
+    except Exception as e:
+        print(f"[ForensicAgent] LLM 调用失败 ({e})，使用兜底报告")
+        return fallback
+
+
+# ── 五项技能函数（LangChain LLM 生成报告）──────────────
+
+FORENSIC_SYSTEM_PROMPT = (
+    "你是审讯室风云游戏中的法医实验室主任。请根据证物信息生成一份"
+    "专业、沉浸式的法医分析报告。报告应包含：检测方法、关键发现、"
+    "与嫌疑人的关联、结论。语气专业冷静，150-250字，带【报告标题】。"
+    "根据游戏剧情需要，报告结论应模棱两可，既有指向性又不完全确定，"
+    "给玩家留下追问空间。不要使用markdown代码块。"
+    "报告中必须包含证物的原始名称，不得改写或省略。"
+)
+
 
 def fingerprint_match(evidence: dict, session_id: str = "") -> str:
-    """指纹匹配分析。模拟从证物上提取指纹并与嫌疑人数据库比对。"""
+    """指纹匹配分析。LLM 生成专业指纹比对报告。"""
     evidence_name = evidence.get("name", "未知证物")
     related = evidence.get("related_suspect_id", "")
     suspect_name = _suspect_name(session_id, related) if related else "未知人员"
-    match_level = random.choice(["完全匹配", "完全匹配", "部分匹配", "不匹配"])
+    description = evidence.get("description", "")
 
-    if match_level == "完全匹配":
-        result = (
-            f"【指纹匹配报告】\n"
-            f"证物：{evidence_name}\n"
-            f"检测方法：氰基丙烯酸酯熏蒸 + 磁性粉末刷显\n"
-            f"提取指纹点数：{random.randint(3, 8)} 枚完整指纹\n"
-            f"比对结果：与 {suspect_name} 的指纹样本匹配度达 99.7%\n"
-            f"结论：该证物上的指纹确认为 {suspect_name} 所留，构成直接物证。\n"
-            f"附加发现：指纹纹路有轻微磨损痕迹，疑似长期接触化学品所致。"
-        )
-    elif match_level == "部分匹配":
-        result = (
-            f"【指纹匹配报告】\n"
-            f"证物：{evidence_name}\n"
-            f"检测方法：氰基丙烯酸酯熏蒸 + 磁性粉末刷显\n"
-            f"提取指纹点数：{random.randint(1, 3)} 枚残缺指纹\n"
-            f"比对结果：与 {suspect_name} 的指纹样本相似度约 {random.randint(60, 85)}%\n"
-            f"结论：存在一定关联性，但指纹残缺不足以作为决定性证据。\n"
-            f"建议：结合其他物证进行交叉验证。"
-        )
-    else:
-        result = (
-            f"【指纹匹配报告】\n"
-            f"证物：{evidence_name}\n"
-            f"检测方法：氰基丙烯酸酯熏蒸 + 磁性粉末刷显\n"
-            f"提取指纹点数：{random.randint(1, 2)} 枚模糊指纹\n"
-            f"比对结果：与 {suspect_name} 的指纹不匹配\n"
-            f"结论：证物上未发现 {suspect_name} 的指纹。\n"
-            f"备注：可能已被擦拭或嫌疑人佩戴了手套。"
-        )
-    return result
+    fallback = (
+        f"【指纹匹配报告】\n"
+        f"证物：{evidence_name}\n"
+        f"检测方法：氰基丙烯酸酯熏蒸法 + 磁性粉末刷显法 + AFIS自动指纹识别系统\n"
+        f"提取指纹点数：3 枚（1枚完整，2枚残缺）\n"
+        f"比对结果：证物表面提取的指纹与 {suspect_name} 的指纹样本存在关联性，"
+        f"相似度评分处于灰色区间。\n"
+        f"结论：指纹证据具有一定指向意义，但需结合更多物证进行交叉验证，"
+        f"单独不足以形成完整证据链。"
+    )
+
+    return _llm_report(
+        FORENSIC_SYSTEM_PROMPT,
+        f"请生成【指纹匹配报告】。\n"
+        f"证物名称：{evidence_name}\n"
+        f"证物描述：{description}\n"
+        f"关联嫌疑人：{suspect_name}\n"
+        f"检测手段：氰基丙烯酸酯熏蒸法、磁性粉末刷显法、AFIS自动指纹识别系统\n"
+        f"要求：报告应包含指纹提取点数、比对匹配度、嫌疑人关联度分析。",
+        fallback,
+    )
 
 
 def blood_analysis(evidence: dict, session_id: str = "") -> str:
-    """血迹/体液分析。模拟血型检测、DNA 比对等法医学分析。"""
+    """血迹/体液分析。LLM 生成专业血迹分析报告。"""
     evidence_name = evidence.get("name", "未知证物")
     related = evidence.get("related_suspect_id", "")
     suspect_name = _suspect_name(session_id, related) if related else "未知人员"
+    description = evidence.get("description", "")
 
-    blood_types = ["A型", "B型", "AB型", "O型"]
-    victim_blood = random.choice(blood_types)
-    found_blood = random.choice(blood_types)
-
-    if found_blood == victim_blood:
-        analysis = (
-            f"血迹血型：{found_blood}（与死者一致）\n"
-            f"DNA 微卫星位点匹配数：{random.randint(13, 16)}/16\n"
-            f"结论：血迹确认来源于死者。"
-        )
-    else:
-        analysis = (
-            f"血迹血型：{found_blood}（与死者的 {victim_blood} 不一致）\n"
-            f"可能来源：非死者血迹，建议扩大比对范围。\n"
-            f"附加检测：血迹中含有微量"
-            f"{random.choice(['镇静剂', '抗凝血剂', '酒精'])}成分。"
-        )
-
-    result = (
+    fallback = (
         f"【血迹分析报告】\n"
         f"证物：{evidence_name}\n"
         f"检测方法：鲁米诺发光反应 + PCR-STR 短串联重复序列分析\n"
-        f"{analysis}\n"
+        f"分析结果：血迹样本经DNA比对分析完成。\n"
         f"关联嫌疑人：{suspect_name}\n"
-        f"备注：建议将 DNA 样本与 {suspect_name} 的口腔拭子进行交叉比对。"
+        f"结论：建议将DNA结果与证人口供进行交叉验证。"
     )
-    return result
+
+    return _llm_report(
+        FORENSIC_SYSTEM_PROMPT,
+        f"请生成【血迹分析报告】。\n"
+        f"证物名称：{evidence_name}\n"
+        f"证物描述：{description}\n"
+        f"关联嫌疑人：{suspect_name}\n"
+        f"检测手段：鲁米诺发光反应、PCR-STR短串联重复序列分析、ABO血型鉴定\n"
+        f"要求：报告应包含血型检测结果、DNA微卫星位点匹配情况、血迹来源分析。",
+        fallback,
+    )
 
 
 def document_verify(evidence: dict, session_id: str = "") -> str:
-    """文件/笔迹鉴定。模拟笔迹比对、纸张年代测定、墨水成分分析等。"""
+    """文件/笔迹鉴定。LLM 生成专业文件鉴定报告。"""
     evidence_name = evidence.get("name", "未知证物")
     related = evidence.get("related_suspect_id", "")
     suspect_name = _suspect_name(session_id, related) if related else "未知人员"
+    description = evidence.get("description", "")
 
-    forgery_methods = [
-        "字迹压力分布不均，疑似临摹伪造",
-        "墨水成分与声称年代不符（检测到现代合成染料）",
-        "纸张纤维中含有荧光增白剂——该物质在声称的年代尚未广泛使用",
-        "笔迹整体流畅自然，与样本匹配度高，应为同一人所写",
-        "发现有刮擦改写痕迹——原文字被化学方法去除后重新书写",
-    ]
-    forgery_finding = random.choice(forgery_methods)
-    is_forged = any(kw in forgery_finding for kw in ["伪造", "不符", "改写"])
-
-    conclusion = (
-        f"该文件存在伪造嫌疑，建议对 {suspect_name} 进行进一步询问。"
-        if is_forged else "文件分析未见明显异常。"
-    )
-    result = (
+    fallback = (
         f"【文件鉴定报告】\n"
         f"证物：{evidence_name}\n"
         f"检测方法：VSC-8000 视频光谱比对 + HPLC 高效液相色谱（墨水分析）\n"
-        f"笔迹特征分析：\n"
-        f"  · 书写压力曲线：{random.choice(['异常波动', '正常分布', '可疑平直'])}\n"
-        f"  · 起收笔特征：{random.choice(['与样本一致', '存在差异', '刻意模仿痕迹'])}\n"
-        f"  · 连笔习惯：{random.choice(['自然流畅', '断笔异常', '与样本匹配'])}\n"
-        f"关键发现：{forgery_finding}\n"
+        f"笔迹特征分析已完成。\n"
         f"关联嫌疑人：{suspect_name}\n"
-        f"结论：{conclusion}"
+        f"结论：文件真实性需结合其他证据综合判断。"
     )
-    return result
+
+    return _llm_report(
+        FORENSIC_SYSTEM_PROMPT,
+        f"请生成【文件鉴定报告】。\n"
+        f"证物名称：{evidence_name}\n"
+        f"证物描述：{description}\n"
+        f"关联嫌疑人：{suspect_name}\n"
+        f"检测手段：VSC-8000视频光谱比对、HPLC高效液相色谱墨水分析、纸张纤维检测\n"
+        f"要求：报告应包含笔迹压力/连笔特征、墨水成分年代分析、是否存在伪造或篡改痕迹。",
+        fallback,
+    )
 
 
 def toxicology_report(evidence: dict, session_id: str = "") -> str:
-    """毒物化验报告。模拟毒理学分析、药物筛查等。"""
+    """毒物化验。LLM 生成专业毒理学分析报告。"""
     evidence_name = evidence.get("name", "未知证物")
     related = evidence.get("related_suspect_id", "")
     suspect_name = _suspect_name(session_id, related) if related else "未知人员"
+    description = evidence.get("description", "")
 
-    toxins = [
-        ("乌头碱（Aconitine）", "剧毒生物碱，作用于钠离子通道，致死剂量 2mg"),
-        ("氰化物（Cyanide）", "细胞色素c氧化酶抑制剂，作用迅速"),
-        ("毛地黄苷（Digoxin）", "强心苷类，过量导致心律失常"),
-        ("砷化合物（Arsenic）", "经典毒物，蓄积性中毒，症状类似自然疾病"),
-        ("月影草毒素（Lunaris Toxin）", "魔法植物提取物，神经麻痹作用，需特殊解药"),
-    ]
-    toxin, toxin_desc = random.choice(toxins)
-    detected = random.choice([True, True, False])
+    fallback = (
+        f"【毒物分析报告】\n"
+        f"证物：{evidence_name}\n"
+        f"检测方法：GC-MS 气相色谱-质谱联用 + 免疫分析法\n"
+        f"毒物筛查已完成。\n"
+        f"关联嫌疑人：{suspect_name}\n"
+        f"结论：需查明毒物来源及嫌疑人是否具备获取条件。"
+    )
 
-    if detected:
-        result = (
-            f"【毒物分析报告】\n"
-            f"证物：{evidence_name}\n"
-            f"检测方法：GC-MS 气相色谱-质谱联用 + 免疫分析法\n"
-            f"检测结果：阳性 —— 检出 {toxin}\n"
-            f"毒理说明：{toxin_desc}\n"
-            f"定量分析：样本中浓度为 {random.uniform(0.5, 50):.1f} μg/mL\n"
-            f"关联嫌疑人：{suspect_name}\n"
-            f"结论：该证物含有致命毒物。"
-            f"需查明毒物来源及 {suspect_name} 是否具备获取条件。"
-        )
-    else:
-        result = (
-            f"【毒物分析报告】\n"
-            f"证物：{evidence_name}\n"
-            f"检测方法：GC-MS 气相色谱-质谱联用 + 免疫分析法\n"
-            f"检测结果：阴性 —— 未检出常见毒物成分\n"
-            f"备注：已覆盖{random.randint(80, 120)}种常见毒物数据库筛查\n"
-            f"关联嫌疑人：{suspect_name}\n"
-            f"结论：该证物不含毒物。"
-            f"若怀疑中毒，建议对死者血液样本进行更深入的毒理学筛查。"
-        )
-    return result
+    return _llm_report(
+        FORENSIC_SYSTEM_PROMPT,
+        f"请生成【毒物分析报告】。\n"
+        f"证物名称：{evidence_name}\n"
+        f"证物描述：{description}\n"
+        f"关联嫌疑人：{suspect_name}\n"
+        f"检测手段：GC-MS气相色谱-质谱联用、免疫分析法、毒物数据库筛查\n"
+        f"要求：报告应包含是否检出毒物、毒物种类及毒理说明、定量浓度分析。",
+        fallback,
+    )
 
 
 def trace_analysis(evidence: dict, session_id: str = "") -> str:
-    """微量痕迹分析。模拟纤维、毛发、土壤、玻璃碎片等微量物证比对。"""
+    """微量痕迹分析。LLM 生成专业微量物证比对报告。"""
     evidence_name = evidence.get("name", "未知证物")
     related = evidence.get("related_suspect_id", "")
     suspect_name = _suspect_name(session_id, related) if related else "未知人员"
+    description = evidence.get("description", "")
 
-    trace_options = [
-        ("纺织纤维",
-         f"证物表面附着{random.randint(3, 15)}根纤维，经偏振光显微镜比对，"
-         f"与 {suspect_name} 衣物纤维材质一致"
-         f"（{random.choice(['羊毛', '亚麻', '丝绸', '棉涤混纺'])}）"),
-        ("毛发",
-         f"发现{random.randint(1, 4)}根毛发，毛囊完整度"
-         f"{random.choice(['良好', '一般', '较差'])}，"
-         f"线粒体 DNA 分析指向与 {suspect_name} 高度相关"),
-        ("土壤颗粒",
-         f"证物缝隙中的土壤矿物成分与案发现场花园土壤的 pH 值和石英含量"
-         f"{random.choice(['高度一致', '存在差异', '部分匹配'])}"),
-        ("玻璃碎片",
-         f"碎片折射率 {random.uniform(1.51, 1.53):.4f}，"
-         f"与案发现场破碎的玻璃窗折射率"
-         f"{random.choice(['一致', '略有偏差', '不同'])}"),
-        ("油漆屑",
-         f"证物表面刮擦处附着的油漆层序结构（底漆→面漆→清漆）"
-         f"与 {suspect_name} 处的油漆"
-         f"{random.choice(['完全匹配', '不匹配', '部分匹配'])}"),
-    ]
-    trace_name, trace_detail = random.choice(trace_options)
-    match_keywords = ["一致", "匹配", "高度相关"]
-    is_match = any(kw in trace_detail for kw in match_keywords)
-
-    result = (
+    fallback = (
         f"【微量痕迹分析报告】\n"
         f"证物：{evidence_name}\n"
         f"检测方法：SEM 扫描电子显微镜 + 显微红外光谱分析\n"
-        f"检出痕迹类型：{trace_name}\n"
-        f"分析详情：{trace_detail}\n"
+        f"微量物证分析已完成。\n"
         f"关联嫌疑人：{suspect_name}\n"
-        f"结论：证物上的微量痕迹为案件关联性提供了"
-        f"{'重要' if is_match else '参考'}线索。"
+        f"结论：证物上的微量痕迹为案件提供了参考线索。"
     )
-    return result
+
+    return _llm_report(
+        FORENSIC_SYSTEM_PROMPT,
+        f"请生成【微量痕迹分析报告】。\n"
+        f"证物名称：{evidence_name}\n"
+        f"证物描述：{description}\n"
+        f"关联嫌疑人：{suspect_name}\n"
+        f"检测手段：SEM扫描电子显微镜、显微红外光谱分析、偏振光显微镜\n"
+        f"要求：报告应包含检出的痕迹类型（纤维/毛发/土壤/玻璃/油漆等）、"
+        f"与嫌疑人的关联度、对案件的指向意义。",
+        fallback,
+    )
 
 
 # ── 技能注册表 ─────────────────────────────────────────────
@@ -327,6 +327,91 @@ def list_available_skills() -> dict:
         "category_mapping": SKILL_CATEGORY_MAP,
         "durations": SKILL_DURATION_MAP,
     }
+
+
+# ── LangChain Tool 包装 ──────────────────────────────────
+# 给每个技能包一层 @tool 装饰器，让 LLM Agent（如 GMAgent）
+# 能通过 Function Calling 直接调用法医技能。
+# 参数统一为 (evidence_id: str, session_id: str)，内部从 DB 读取证物。
+
+@tool
+def fingerprint_match_tool(evidence_id: str, session_id: str) -> str:
+    """指纹匹配分析。对证物进行氰基丙烯酸酯熏蒸及磁性粉末刷显，提取指纹后与嫌疑人数据库比对。
+    适用类别: weapon / document / physical。
+    输入 evidence_id（如 evidence_1）和 session_id，返回结构化指纹匹配报告。"""
+    evidence = _get_evidence_or_error(session_id, evidence_id)
+    if evidence is None:
+        return f"错误：证物 '{evidence_id}' 不存在"
+    return fingerprint_match(evidence, session_id)
+
+
+@tool
+def blood_analysis_tool(evidence_id: str, session_id: str) -> str:
+    """血迹/体液分析。使用鲁米诺发光反应及 PCR-STR 短串联重复序列分析，检测证物上的血迹来源。
+    适用类别: weapon / forensic / physical。
+    输入 evidence_id 和 session_id，返回结构化血迹分析报告。"""
+    evidence = _get_evidence_or_error(session_id, evidence_id)
+    if evidence is None:
+        return f"错误：证物 '{evidence_id}' 不存在"
+    return blood_analysis(evidence, session_id)
+
+
+@tool
+def document_verify_tool(evidence_id: str, session_id: str) -> str:
+    """文件/笔迹鉴定。使用 VSC-8000 视频光谱比对及 HPLC 高效液相色谱分析墨水成分，
+    判断文件是否存在伪造或篡改。适用类别: document。
+    输入 evidence_id 和 session_id，返回结构化文件鉴定报告。"""
+    evidence = _get_evidence_or_error(session_id, evidence_id)
+    if evidence is None:
+        return f"错误：证物 '{evidence_id}' 不存在"
+    return document_verify(evidence, session_id)
+
+
+@tool
+def toxicology_report_tool(evidence_id: str, session_id: str) -> str:
+    """毒物化验。使用 GC-MS 气相色谱-质谱联用及免疫分析法，筛查证物中是否含有毒物。
+    适用类别: chemical / forensic。
+    输入 evidence_id 和 session_id，返回结构化毒物分析报告。"""
+    evidence = _get_evidence_or_error(session_id, evidence_id)
+    if evidence is None:
+        return f"错误：证物 '{evidence_id}' 不存在"
+    return toxicology_report(evidence, session_id)
+
+
+@tool
+def trace_analysis_tool(evidence_id: str, session_id: str) -> str:
+    """微量痕迹分析。使用 SEM 扫描电子显微镜及显微红外光谱分析证物上的纤维、毛发、
+    土壤、玻璃碎片等微量物证。适用类别: forensic / physical / testimony。
+    输入 evidence_id 和 session_id，返回结构化微量痕迹分析报告。"""
+    evidence = _get_evidence_or_error(session_id, evidence_id)
+    if evidence is None:
+        return f"错误：证物 '{evidence_id}' 不存在"
+    return trace_analysis(evidence, session_id)
+
+
+def _get_evidence_or_error(session_id: str, evidence_id: str) -> Optional[dict]:
+    """从 DB 读取证物，不存在时返回 None（工具调用方自行处理错误消息）"""
+    return DBHelper.get_evidence(session_id, evidence_id)
+
+
+FORENSIC_TOOLS = [
+    fingerprint_match_tool,
+    blood_analysis_tool,
+    document_verify_tool,
+    toxicology_report_tool,
+    trace_analysis_tool,
+]
+
+
+def get_forensic_tools() -> list:
+    """返回所有法医分析技能对应的 LangChain Tool 列表。
+    可直接传给 LangChain Agent 的 tools 参数。
+
+    用法:
+        from agents.forensic_agent import get_forensic_tools
+        agent = create_react_agent(llm, get_forensic_tools(), ...)
+    """
+    return FORENSIC_TOOLS
 
 
 # ══════════════════════════════════════════════════════════════
