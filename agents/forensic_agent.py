@@ -172,6 +172,10 @@ def document_verify(evidence: dict, session_id: str = "") -> str:
     forgery_finding = random.choice(forgery_methods)
     is_forged = any(kw in forgery_finding for kw in ["伪造", "不符", "改写"])
 
+    conclusion = (
+        f"该文件存在伪造嫌疑，建议对 {suspect_name} 进行进一步询问。"
+        if is_forged else "文件分析未见明显异常。"
+    )
     result = (
         f"【文件鉴定报告】\n"
         f"证物：{evidence_name}\n"
@@ -182,8 +186,7 @@ def document_verify(evidence: dict, session_id: str = "") -> str:
         f"  · 连笔习惯：{random.choice(['自然流畅', '断笔异常', '与样本匹配'])}\n"
         f"关键发现：{forgery_finding}\n"
         f"关联嫌疑人：{suspect_name}\n"
-        f"结论：{'该文件存在伪造嫌疑，建议对 ' + suspect_name + ' 进行进一步询问。'
-                if is_forged else '文件分析未见明显异常。'}"
+        f"结论：{conclusion}"
     )
     return result
 
