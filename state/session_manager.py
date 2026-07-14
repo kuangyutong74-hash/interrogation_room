@@ -33,6 +33,9 @@ class GameSessionManager:
         st.session_state["confrontation_evidence"] = None
         st.session_state["_last_refreshed_suspect_id"] = None
 
+        # 存储案件背景（用于对话选项生成）
+        st.session_state["case_background"] = case_dict.get("background", "")
+
         # --- 启动法医异步调度器（后台守护线程）---
         fa = ForensicAgent(session_id=session_id)
         fa.start_scheduler()

@@ -17,6 +17,7 @@
 
 import json
 import os
+import re
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -27,6 +28,9 @@ from database.db_helper import DBHelper
 from prompts.system_prompts import (
     build_suspect_prompt,
     CONTRADICTION_DETECTION_PROMPT,
+    DIALOGUE_OPTIONS_PROMPT,
+    USER_INPUT_POLISH_PROMPT,
+    get_behavior_modifier,
 )
 
 # 加载 .env 中的 API Key
@@ -308,3 +312,99 @@ class SuspectAgent:
             "defense_score": self.defense_score,
             "is_broken": is_broken,
         }
+
+    # ── 对话选项生成（ABC 三选项）────────────────────────
+
+    def generate_question_options(self, case_background: str = "") -> list[str]:
+        """
+        根据当前审讯上下文生成 A/B/C 三个对话选项。
+
+        每个选项代表不同的审讯策略：
+          - A: 直接施压
+          - B: 迂回试探
+          - C: 证据对质 / 心理战术
+
+        参数:
+            case_background: 案件背景描述（可选，越详细选项越精准）
+
+        返回:
+            包含3条问话选项的列表，["A: ...", "B: ...", "C: ..."]
+        """
+        # 获取对话历史
+        chat_history = self._get_chat_history_text()
+
+        # 获取已发现的证物
+        discovered = DBHelper.get_discovered_evidences(self.session_id)
+        evidence_text = "\n".join(
+            [f"- {e['name']}：{e.get('description', '')[:60]}" for e in discovered]
+        ) or "（暂无已发现证物）"
+
+        prompt = DIALOGUE_OPTIONS_PROMPT.format(
+            case_background=case_background or "（暂无详细背景）",
+            suspect_name=self.name,
+            suspect_role=self.role,
+            defense_score=self.defense_score,
+            behavior=get_behavior_modifier(self.defense_score),
+            chat_history=chat_history or "（审讯刚刚开始，尚无对话记录）",
+            evidences=evidence_text,
+        )
+
+        try:
+            response = self.llm.invoke([
+                ("system", prompt),
+                ("human", "请根据当前审讯状态生成3条问话策略，只输出JSON。"),
+            ])
+            text = response.content.strip()
+            # 清理可能的 ```json ``` markdown 包裹
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+            text = text.strip()
+
+            result = json.loads(text)
+            options = result.get("options", [])
+            if len(options) >= 3:
+                return options[:3]
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"[SuspectAgent] 选项生成失败: {e}")
+
+        # 保底选项（LLM 调用失败时使用）
+        return [
+            f"A: {self.name}，案发当晚你在哪里？在做什么？",
+            f"B: {self.name}，你对案发过程有什么要补充的吗？",
+            "C: 我们已经掌握了一些关键证据，你现在坦白还来得及。",
+        ]
+
+    # ── 用户输入润色（D 选项）───────────────────────────
+
+    def polish_user_input(self, user_input: str) -> str:
+        """
+        润色用户自定义输入（D 选项），使其更符合审讯场景。
+
+        保留原始意图和核心信息，仅优化措辞和语气。
+        如果 LLM 调用失败，返回原始输入。
+
+        参数:
+            user_input: 用户输入的原始文本
+
+        返回:
+            润色后的文本
+        """
+        if not user_input or not user_input.strip():
+            return ""
+
+        prompt = USER_INPUT_POLISH_PROMPT.format(
+            user_input=user_input.strip(),
+            suspect_name=self.name,
+            suspect_role=self.role,
+            defense_score=self.defense_score,
+        )
+
+        try:
+            response = self.llm.invoke([
+                ("system", prompt),
+            ])
+            polished = response.content.strip()
+            return polished if polished else user_input.strip()
+        except Exception as e:
+            print(f"[SuspectAgent] 润色失败: {e}")
+            return user_input.strip()
